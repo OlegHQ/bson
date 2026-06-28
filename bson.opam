@@ -1,0 +1,21 @@
+opam-version: "2.0"
+synopsis: "BSON data structure with encoding and decoding"
+description: "Modern Dune packaging for the MassD BSON API used by mongo-eio."
+maintainer: "OlegHQ"
+authors: [
+  "Marc Simon"
+  "Dr. Xinuo Chen"
+]
+license: "MIT"
+homepage: "https://github.com/OlegHQ/bson-eio"
+bug-reports: "https://github.com/OlegHQ/bson-eio/issues"
+depends: [
+  "ocaml" {>= "5.0"}
+  "dune" {>= "3.16"}
+]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+]
+dev-repo: "git+https://github.com/OlegHQ/bson-eio.git"
+

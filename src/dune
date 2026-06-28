@@ -1,0 +1,6 @@
+(library
+ (name bson)
+ (public_name bson)
+ (wrapped false)
+ (modules Bson Bson_ext))
+
