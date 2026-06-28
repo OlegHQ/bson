@@ -7,8 +7,8 @@ authors: [
   "Dr. Xinuo Chen"
 ]
 license: "MIT"
-homepage: "https://github.com/OlegHQ/bson-eio"
-bug-reports: "https://github.com/OlegHQ/bson-eio/issues"
+homepage: "https://github.com/OlegHQ/bson"
+bug-reports: "https://github.com/OlegHQ/bson/issues"
 depends: [
   "ocaml" {>= "5.0"}
   "dune" {>= "3.16"}
@@ -17,5 +17,4 @@ build: [
   ["dune" "subst"] {dev}
   ["dune" "build" "-p" name "-j" jobs]
 ]
-dev-repo: "git+https://github.com/OlegHQ/bson-eio.git"
-
+dev-repo: "git+https://github.com/OlegHQ/bson.git"
