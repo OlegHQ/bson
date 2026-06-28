@@ -30,4 +30,8 @@ let () =
   let doc = post_doc_to_bson_doc post in
   assert_equal "_id" "post_1" (Bson.get_string (Bson.get_element "_id" doc));
   assert_equal "roundtrip" post (post_doc_of_bson_doc doc);
-  assert_equal "nested" state (state_doc_of_bson (Bson.get_element "state" doc))
+  assert_equal "nested" state (state_doc_of_bson (Bson.get_element "state" doc));
+  let encoded = Bson.encode (Bson.add_element "items" (Bson.create_list [Bson.create_string "a"; Bson.create_string "b"]) Bson.empty) in
+  let decoded = Bson.decode encoded in
+  assert_equal "array order" ["a"; "b"]
+    (Bson.get_list (Bson.get_element "items" decoded) |> List.map Bson.get_string)

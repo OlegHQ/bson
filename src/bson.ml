@@ -192,7 +192,7 @@ let list_to_doc l = (* we need to transform the list to a doc with key as increm
     | [] -> acc
     | hd::tl -> to_doc (i+1) (add_element (string_of_int i) hd acc) tl
   in
-  to_doc 0 empty l;;
+  List.rev (to_doc 0 empty l);;
 
 
 let encode doc =
