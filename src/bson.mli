@@ -76,6 +76,7 @@ val create_string : string -> element;;
 val create_doc_element : t -> element;;
 val create_list : element list -> element;;
 val create_doc_element_list : t list -> element;;
+val create_generic_binary : string -> element;;
 val create_user_binary : string -> element;;
 val create_objectId : string -> element;;
 val create_boolean : bool -> element;;

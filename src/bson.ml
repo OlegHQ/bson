@@ -96,7 +96,7 @@ let hex_to_string s =
 let create_objectId v =
   if String.length v = 12 then ObjectId v
   else if String.length v = 24 then
-    try (ObjectId (hex_to_string v)) with (Failure "int_of_string") -> raise Invalid_objectId
+    try ObjectId (hex_to_string v) with Failure _ -> raise Invalid_objectId
   else raise Invalid_objectId;;
 let create_boolean v = Boolean v;;
 let create_utc v = UTC v;;
@@ -133,6 +133,11 @@ let get_minkey = function | MinKey MINKEY -> MINKEY | _ -> raise Wrong_bson_type
 let get_maxkey = function | MaxKey MAXKEY -> MAXKEY | _ -> raise Wrong_bson_type;;
 
 let all_elements d = d
+
+let malformed () = raise Malformed_bson
+
+let require_available str cur len =
+  if cur < 0 || len < 0 || cur + len > String.length str then malformed ()
 
   (*
     encode int64, int32 and float.
@@ -273,6 +278,7 @@ let encode doc =
 
 
 let decode_int64 str cur =
+  require_available str cur 8;
   let rec decode i acc =
     if i < cur then acc
     else
@@ -288,6 +294,7 @@ let decode_float str cur =
   (Int64.float_of_bits i, new_cur);;
 
 let decode_int32 str cur =
+  require_available str cur 4;
   let rec decode i acc =
     if i < cur then acc
     else
@@ -299,7 +306,9 @@ let decode_int32 str cur =
       decode (i-1) new_acc
   in (decode (cur+3) 0l, cur+4);;
 
-let rec next_x00 str cur = String.index_from str cur '\x00';;
+let next_x00 str cur =
+  try String.index_from str cur '\x00'
+  with Not_found | Invalid_argument _ -> malformed ();;
 
 let decode_ename str cur =
   let x00 = next_x00 str cur in
@@ -318,6 +327,9 @@ let decode_double str cur =
 
 let decode_string str cur =
   let (len, next_cur) = decode_len str cur in
+  if len < 1 then malformed ();
+  require_available str next_cur len;
+  if str.[next_cur + len - 1] <> '\x00' then malformed ();
     (*print_string "cur=";print_int cur;print_string ";";
       print_string "len=";print_int len;
       print_endline "";*)
@@ -329,13 +341,19 @@ let decode_string str cur =
   (String.sub str next_cur (len-1), next_cur+len);;
 
 let doc_to_list doc = (* we need to transform a doc with key as incrementing from '0' to a list *)
-  List.map (
-    fun (k,v) -> v
-  ) doc
+  doc
+  |> List.map (fun (key, value) ->
+         try (int_of_string key, value) with Failure _ -> malformed ())
+  |> List.sort (fun (left, _) (right, _) -> compare left right)
+  |> List.mapi (fun index (key, value) ->
+         if index <> key then malformed ();
+         value)
 
 
 let decode_binary str cur =
   let (len, next_cur) = decode_len str cur in
+  if len < 0 then malformed ();
+  require_available str next_cur (1 + len);
   let c = str.[next_cur] in
   let b = String.sub str (next_cur+1) len in
   let new_cur = next_cur+1+len in
@@ -347,9 +365,16 @@ let decode_binary str cur =
     | '\x80' -> (Binary (UserDefined b), new_cur)
     | _ -> raise Malformed_bson;;
 
-let decode_objectId str cur = (ObjectId (String.sub str cur 12), cur+12);;
+let decode_objectId str cur =
+  require_available str cur 12;
+  (ObjectId (String.sub str cur 12), cur+12);;
 
-let decode_boolean str cur = (Boolean (if str.[cur] = '\x00' then false else true), cur+1);;
+let decode_boolean str cur =
+  require_available str cur 1;
+  match str.[cur] with
+  | '\x00' -> (Boolean false, cur + 1)
+  | '\x01' -> (Boolean true, cur + 1)
+  | _ -> malformed ();;
 
 let decode_utc str cur =
   let (i, new_cur) = decode_int64 str cur in
@@ -366,6 +391,7 @@ let decode_jscode str cur =
 
 let decode str =
   let rec decode_element str cur =
+    require_available str cur 1;
     let c = str.[cur] in
     let next_cur = cur+1 in
     let (ename, next_cur) = decode_ename str next_cur in
@@ -391,7 +417,7 @@ let decode str =
 	| '\x0B' -> decode_regex str next_cur
 	| '\x0D' -> decode_jscode str next_cur
 	| '\x0F' -> (* decode jscode_w_s *)
-	  let (len, next_cur) = decode_len str next_cur in
+	  let (_len, next_cur) = decode_len str next_cur in
 	  let (s, next_cur) = decode_string str next_cur in
 	  let (doc, next_cur) = decode_doc str next_cur in
 	  (JSCodeWS (s, doc), next_cur)
@@ -412,16 +438,24 @@ let decode str =
   and decode_doc str cur =
     let acc = empty in
     let (len, next_cur) = decode_len str cur in
+    if len < 5 then malformed ();
+    require_available str cur len;
+    if str.[cur + len - 1] <> '\x00' then malformed ();
+    let doc_end = cur + len - 1 in
     let rec decode_elements cur acc =
-      if str.[cur] = '\x00' then (acc, cur+1)
+      if cur > doc_end then malformed ()
+      else if cur = doc_end then (List.rev acc, cur+1)
       else
 	let (ename, element, next_cur) = decode_element str cur in
-	decode_elements next_cur (add_element ename element acc)
+	decode_elements next_cur ((ename, element) :: acc)
     in
     let (doc, des) = decode_elements next_cur acc in
     if des - cur <> len then raise Malformed_bson
     else (doc, des)
-  in let (doc, _) = decode_doc str 0 in doc;;
+  in
+  let (doc, next_cur) = decode_doc str 0 in
+  if next_cur <> String.length str then malformed ();
+  doc;;
 
   (*
     Not that this bson to json conversion is far from completion.

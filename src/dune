@@ -1,6 +1,7 @@
 (library
  (name bson)
  (public_name bson)
+ (flags
+  (:standard -w -32))
  (wrapped false)
  (modules Bson Bson_ext))
-

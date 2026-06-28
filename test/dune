@@ -1,5 +1,11 @@
 (test
  (name test_ppx_bson)
+ (modules test_ppx_bson)
  (libraries bson)
  (preprocess
   (pps bson.ppx)))
+
+(test
+ (name test_bson_corpus_subset)
+ (modules test_bson_corpus_subset)
+ (libraries bson))
