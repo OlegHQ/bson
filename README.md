@@ -47,31 +47,37 @@ You can use the following command in the root of the project to run it:
 	make install
 
 
-###Bson.syntax
+###Bson PPX
 
-Deriving syntax extension.
+Use the modern `bson.ppx` deriver for typed record/document codecs.
 
-	type t = {
-	  name = string;
-	  value = int;
-	} deriving (Bson_ext)
+```ocaml
+type user_doc = {
+  id : string [@bson.key "_id"];
+  username : string;
+  media_ids : string list;
+  avatar_url : string option;
+}
+[@@deriving bson]
+```
 
-generate Bson_utils_t.to_bson and Bson_utils_t.from_bson
+This generates:
 
-#####Example
+- `user_doc_to_bson_doc : user_doc -> Bson.t`
+- `user_doc_of_bson_doc : Bson.t -> user_doc`
+- `user_doc_to_bson : user_doc -> Bson.element`
+- `user_doc_of_bson : Bson.element -> user_doc`
 
-	let user = {
-	  name = "Joe"
-	  value = 5;
-	} deriving (Bson_ext);
-	
-	Mongo_lwt.insert mongo [ Bson_utils_t.to_bson user ];
-	(* ..... *)
-	let ds = MongoReply.get_document_list r in
-	List.fold_left (
-         fun acc d ->
-          (Bson_utils_t.from_bson d)::acc
-         ) acc ds
+Use the `*_doc` functions with Mongo collections:
+
+```ocaml
+Mongo_eio.insert ~domain_mgr mongo [ user_doc_to_bson_doc user ];
+let users = MongoReply.get_document_list reply |> List.map user_doc_of_bson_doc
+```
+
+The deriver intentionally starts with records, primitives, lists, arrays, options,
+and nested BSON-derived record types. Keep custom domain validation outside the
+generated codec.
 
 ###Misc
 Please also refer to the [Official Bson specification](http://bsonspec.org/#/specification) for more information.
@@ -81,4 +87,3 @@ Please also refer to the [Official Bson specification](http://bsonspec.org/#/spe
 *Yes, I would like to call this utility as Bson.ml instead of ocamlbson, or something like that.* 
 
 *In addition, experienced ocaml developers are welcomed to improve the code base*
-

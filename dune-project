@@ -8,5 +8,5 @@
  (description "Modern Dune packaging for the MassD BSON API used by mongo-eio.")
  (depends
   (ocaml (>= 5.0))
-  (dune (>= 3.16))))
-
+  (dune (>= 3.16))
+  ppxlib))

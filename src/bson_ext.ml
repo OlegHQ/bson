@@ -4,6 +4,8 @@ module type Bson_ext = sig
   val from_bson : Bson.element -> a
 end
 
+exception Bad_document of string
+
 module Default(D : Bson_ext) : Bson_ext with type a = D.a = struct
   include D
 end
@@ -102,3 +104,57 @@ module Bson_ext_option (A : Bson_ext) = Default(struct
       | Some o -> A.to_bson o
 
   end)
+
+let document fields =
+  List.fold_left
+    (fun doc (name, element) -> Bson.add_element name element doc)
+    Bson.empty fields
+
+let required_field name of_bson doc =
+  try of_bson (Bson.get_element name doc) with
+  | Not_found -> raise (Bad_document ("missing BSON field: " ^ name))
+
+let optional_field name of_bson doc =
+  if Bson.has_element name doc then
+    match Bson.get_element name doc with
+    | element -> (
+        try
+          ignore (Bson.get_null element);
+          None
+        with Bson.Wrong_bson_type -> Some (of_bson element))
+  else None
+
+let int_to_bson = Bson_ext_int.to_bson
+let int_of_bson = Bson_ext_int.from_bson
+let int32_to_bson = Bson_ext_int32.to_bson
+let int32_of_bson = Bson_ext_int32.from_bson
+let int64_to_bson = Bson_ext_int64.to_bson
+let int64_of_bson = Bson_ext_int64.from_bson
+let bool_to_bson = Bson_ext_bool.to_bson
+let bool_of_bson = Bson_ext_bool.from_bson
+let float_to_bson = Bson_ext_float.to_bson
+let float_of_bson = Bson_ext_float.from_bson
+let string_to_bson = Bson_ext_string.to_bson
+let string_of_bson = Bson_ext_string.from_bson
+
+let list_to_bson to_bson values =
+  Bson.create_list (List.map to_bson values)
+
+let list_of_bson of_bson element =
+  Bson.get_list element |> List.map of_bson
+
+let array_to_bson to_bson values =
+  values |> Array.to_list |> list_to_bson to_bson
+
+let array_of_bson of_bson element =
+  element |> list_of_bson of_bson |> Array.of_list
+
+let option_to_bson to_bson = function
+  | None -> Bson.create_null ()
+  | Some value -> to_bson value
+
+let option_of_bson of_bson element =
+  try
+    ignore (Bson.get_null element);
+    None
+  with Bson.Wrong_bson_type -> Some (of_bson element)

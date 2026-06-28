@@ -1,0 +1,5 @@
+(test
+ (name test_ppx_bson)
+ (libraries bson)
+ (preprocess
+  (pps bson.ppx)))
