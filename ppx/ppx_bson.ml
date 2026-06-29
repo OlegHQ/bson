@@ -173,11 +173,29 @@ let gen_of_doc td fields =
         ~expr:(A.pexp_fun ~loc Nolabel None (pat_var ~loc "doc") body);
     ]
 
+let gen_of_doc_result td fields =
+  let loc = loc_of_type_decl td in
+  let type_name = td.ptype_name.txt in
+  let of_doc = ident ~loc [ type_name ^ "_of_bson_doc" ] in
+  List.iter ensure_immutable fields;
+  let body =
+    app ~loc (ident ~loc [ "Bson_ext"; "result_of_exn" ])
+      [ A.pexp_fun ~loc Nolabel None (A.ppat_construct ~loc (lid ~loc [ "()" ]) None)
+          (app ~loc of_doc [ var ~loc "doc" ]) ]
+  in
+  A.pstr_value ~loc Nonrecursive
+    [
+      A.value_binding ~loc
+        ~pat:(pat_var ~loc (type_name ^ "_of_bson_doc_result"))
+        ~expr:(A.pexp_fun ~loc Nolabel None (pat_var ~loc "doc") body);
+    ]
+
 let gen_element_codecs td =
   let loc = loc_of_type_decl td in
   let type_name = td.ptype_name.txt in
   let to_doc = ident ~loc [ type_name ^ "_to_bson_doc" ] in
   let of_doc = ident ~loc [ type_name ^ "_of_bson_doc" ] in
+  let of_bson = ident ~loc [ type_name ^ "_of_bson" ] in
   let value = var ~loc "value" in
   let element = var ~loc "element" in
   [
@@ -197,13 +215,25 @@ let gen_element_codecs td =
             (A.pexp_fun ~loc Nolabel None (pat_var ~loc "element")
                (app ~loc of_doc [ app ~loc (ident ~loc [ "Bson"; "get_doc_element" ]) [ element ] ]));
       ];
+    A.pstr_value ~loc Nonrecursive
+      [
+        A.value_binding ~loc
+          ~pat:(pat_var ~loc (type_name ^ "_of_bson_result"))
+          ~expr:
+            (A.pexp_fun ~loc Nolabel None (pat_var ~loc "element")
+               (app ~loc (ident ~loc [ "Bson_ext"; "result_of_exn" ])
+                  [ A.pexp_fun ~loc Nolabel None
+                      (A.ppat_construct ~loc (lid ~loc [ "()" ]) None)
+                      (app ~loc of_bson [ var ~loc "element" ]) ]));
+      ];
   ]
 
 let generate_str ~loc:_ ~path:_ (_rec_flag, tds) =
   List.concat_map
     (fun td ->
       let fields = ensure_supported_type td in
-      [ gen_to_doc td fields; gen_of_doc td fields ] @ gen_element_codecs td)
+      [ gen_to_doc td fields; gen_of_doc td fields; gen_of_doc_result td fields ]
+      @ gen_element_codecs td)
     tds
 
 let gen_sig_for_type td =
@@ -219,8 +249,16 @@ let gen_sig_for_type td =
   [
     value (type_name ^ "_to_bson_doc") (arrow typ (A.ptyp_constr ~loc (lid ~loc [ "Bson"; "t" ]) []));
     value (type_name ^ "_of_bson_doc") (arrow (A.ptyp_constr ~loc (lid ~loc [ "Bson"; "t" ]) []) typ);
+    value (type_name ^ "_of_bson_doc_result")
+      (arrow (A.ptyp_constr ~loc (lid ~loc [ "Bson"; "t" ]) [])
+         (A.ptyp_constr ~loc (lid ~loc [ "result" ])
+            [ typ; A.ptyp_constr ~loc (lid ~loc [ "string" ]) [] ]));
     value (type_name ^ "_to_bson") (arrow typ (A.ptyp_constr ~loc (lid ~loc [ "Bson"; "element" ]) []));
     value (type_name ^ "_of_bson") (arrow (A.ptyp_constr ~loc (lid ~loc [ "Bson"; "element" ]) []) typ);
+    value (type_name ^ "_of_bson_result")
+      (arrow (A.ptyp_constr ~loc (lid ~loc [ "Bson"; "element" ]) [])
+         (A.ptyp_constr ~loc (lid ~loc [ "result" ])
+            [ typ; A.ptyp_constr ~loc (lid ~loc [ "string" ]) [] ]));
   ]
 
 let generate_sig ~loc:_ ~path:_ (_rec_flag, tds) =
